@@ -7,7 +7,7 @@ package akka.http.impl.engine.client
 import akka.actor._
 import akka.event.{ LogSource, Logging, LoggingAdapter }
 import akka.http.impl.engine.client.PoolFlow._
-import akka.http.impl.engine.client.pool.NewHostConnectionPool
+import akka.http.impl.engine.client.pool.{EnhancedHostConnectionPool, NewHostConnectionPool}
 import akka.http.impl.util.RichHttpRequest
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.Http
@@ -102,8 +102,9 @@ private class PoolInterfaceActor(gateway: PoolGateway)(implicit fm: Materializer
 
     val poolFlow =
       settings.poolImplementation match {
-        case PoolImplementation.Legacy ⇒ PoolFlow(connectionFlow, settings, log).named("PoolFlow")
-        case PoolImplementation.New    ⇒ NewHostConnectionPool(connectionFlow, settings, log).named("PoolFlow")
+        case PoolImplementation.Legacy    ⇒ PoolFlow(connectionFlow, settings, log).named("PoolFlow")
+        case PoolImplementation.New       ⇒ NewHostConnectionPool(connectionFlow, settings, log).named("PoolFlow")
+        case PoolImplementation.Enhanced  ⇒ EnhancedHostConnectionPool(connectionFlow, settings, log).named("PoolFlow")
       }
 
     Source.fromPublisher(ActorPublisher(self)).via(poolFlow).runWith(Sink.fromSubscriber(ActorSubscriber[ResponseContext](self)))

@@ -38,7 +38,8 @@ private[akka] final case class ConnectionPoolSettingsImpl(
   require(pipeliningLimit > 0, "pipelining-limit must be > 0")
   require(maxConnectionLifetime > Duration.Zero, "max-connection-lifetime must be > 0")
   require(
-    maxConnectionLifetime == Duration.Inf || poolImplementation == PoolImplementation.New,
+    maxConnectionLifetime == Duration.Inf ||
+      (poolImplementation == PoolImplementation.New || poolImplementation == PoolImplementation.Enhanced),
     "max-connection-lifetime does not taking effect with legacy pool implementation")
   require(idleTimeout >= Duration.Zero, "idle-timeout must be >= 0")
   require(
@@ -77,8 +78,9 @@ private[akka] object ConnectionPoolSettingsImpl extends SettingsCompanionImpl[Co
       c.getPotentiallyInfiniteDuration("idle-timeout"),
       ClientConnectionSettingsImpl.fromSubConfig(root, c.getConfig("client")),
       c.getString("pool-implementation").toLowerCase match {
-        case "legacy" ⇒ PoolImplementation.Legacy
-        case "new"    ⇒ PoolImplementation.New
+        case "legacy"   ⇒ PoolImplementation.Legacy
+        case "new"      ⇒ PoolImplementation.New
+        case "enhanced" ⇒ PoolImplementation.Enhanced
       },
       c.getPotentiallyInfiniteDuration("response-entity-subscription-timeout")
     )

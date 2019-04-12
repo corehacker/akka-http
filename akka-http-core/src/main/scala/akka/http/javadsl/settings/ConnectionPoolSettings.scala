@@ -22,6 +22,7 @@ trait PoolImplementation
 object PoolImplementation {
   def Legacy: PoolImplementation = akka.http.scaladsl.settings.PoolImplementation.Legacy
   def New: PoolImplementation = akka.http.scaladsl.settings.PoolImplementation.New
+  def Enhanced: PoolImplementation = akka.http.scaladsl.settings.PoolImplementation.Enhanced
 }
 
 /**

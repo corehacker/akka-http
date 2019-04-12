@@ -767,3 +767,4 @@ abstract class ConnectionPoolSpec(poolImplementation: PoolImplementation) extend
 
 class LegacyConnectionPoolSpec extends ConnectionPoolSpec(PoolImplementation.Legacy)
 class NewConnectionPoolSpec extends ConnectionPoolSpec(PoolImplementation.New)
+class EnhancedConnectionPoolSpec extends ConnectionPoolSpec(PoolImplementation.Enhanced)

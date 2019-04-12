@@ -19,6 +19,7 @@ sealed trait PoolImplementation extends js.PoolImplementation
 object PoolImplementation {
   case object Legacy extends PoolImplementation
   case object New extends PoolImplementation
+  case object Enhanced extends PoolImplementation
 }
 
 /**
