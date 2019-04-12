@@ -25,12 +25,12 @@ object Main extends App {
 
   val x = Http().singleRequest(HttpRequest(uri = url))
 
-  val res = Await.result(x, 10.seconds)
+  val res = Await.result(x, Duration.Inf)
 
   val response = res.entity.dataBytes.runFold(ByteString.empty)(_ ++ _).map(_.utf8String)
 
   println(" ------------ RESPONSE ------------")
-  println(Await.result(response, 10.seconds))
+  println(Await.result(response, Duration.Inf))
   println(" -------- END OF RESPONSE ---------")
 
   system.terminate()
