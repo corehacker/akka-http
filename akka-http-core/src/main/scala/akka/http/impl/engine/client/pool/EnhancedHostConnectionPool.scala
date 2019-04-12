@@ -56,8 +56,8 @@ private[client] object EnhancedHostConnectionPool {
     connectionFlow: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]],
     _settings:      ConnectionPoolSettings, _log: LoggingAdapter
   ) extends GraphStage[FlowShape[RequestContext, ResponseContext]] {
-    val requestsIn = Inlet[RequestContext]("HostConnectionPoolStage.requestsIn")
-    val responsesOut = Outlet[ResponseContext]("HostConnectionPoolStage.responsesOut")
+    val requestsIn: Inlet[RequestContext] = Inlet[RequestContext]("HostConnectionPoolStage.requestsIn")
+    val responsesOut: Outlet[ResponseContext] = Outlet[ResponseContext]("HostConnectionPoolStage.responsesOut")
 
     override val shape = FlowShape(requestsIn, responsesOut)
     def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
@@ -68,7 +68,7 @@ private[client] object EnhancedHostConnectionPool {
 
         private[this] var lastTimeoutId = 0L
 
-        val slots = Vector.tabulate(_settings.maxConnections)(new Slot(_))
+        val freeSlots: Vector[Slot] = Vector.tabulate(_settings.maxConnections)(new Slot(_))
         val slotsWaitingForDispatch: util.Deque[Slot] = new util.ArrayDeque[Slot]
         val retryBuffer: util.Deque[RequestContext] = new util.ArrayDeque[RequestContext]
         var _connectionEmbargo: FiniteDuration = Duration.Zero
@@ -77,7 +77,7 @@ private[client] object EnhancedHostConnectionPool {
 
         override def preStart(): Unit = {
           pull(requestsIn)
-          slots.foreach(_.initialize())
+          freeSlots.foreach(_.initialize())
         }
 
         def onPush(): Unit = {
@@ -103,7 +103,7 @@ private[client] object EnhancedHostConnectionPool {
 
         def hasIdleSlots: Boolean =
           // TODO: optimize by keeping track of idle connections?
-          slots.exists(_.isIdle)
+          freeSlots.exists(_.isIdle)
 
         def dispatchResponseResult(req: RequestContext, result: Try[HttpResponse]): Unit =
           if (result.isFailure && req.canBeRetried) {
@@ -114,14 +114,14 @@ private[client] object EnhancedHostConnectionPool {
 
         def dispatchRequest(req: RequestContext): Unit = {
           val slot =
-            slots.find(_.isIdle)
+            freeSlots.find(_.isIdle)
               .getOrElse(throw new IllegalStateException("Tried to dispatch request when no slot is idle"))
 
           slot.debug("Dispatching request [{}]", req.request.debugString)
           slot.onNewRequest(req)
         }
 
-        def numConnectedSlots: Int = slots.count(_.isConnected)
+        def numConnectedSlots: Int = freeSlots.count(_.isConnected)
 
         def onConnectionAttemptFailed(atPreviousEmbargoLevel: FiniteDuration): Unit = {
           val oldValue = _connectionEmbargo
@@ -133,7 +133,7 @@ private[client] object EnhancedHostConnectionPool {
           }
           if (_connectionEmbargo != oldValue) {
             log.warning(s"Connection attempt failed. Backing off new connection attempts for at least ${_connectionEmbargo}.")
-            slots.foreach(_.onNewConnectionEmbargo(_connectionEmbargo))
+            freeSlots.foreach(_.onNewConnectionEmbargo(_connectionEmbargo))
           }
         }
         def onConnectionAttemptSucceeded(): Unit = _connectionEmbargo = Duration.Zero
@@ -144,28 +144,28 @@ private[client] object EnhancedHostConnectionPool {
           override def toString: String = s"Event($name)"
         }
         object Event {
-          val onPreConnect = event0("onPreConnect", _.onPreConnect(_))
-          val onConnectionAttemptSucceeded = event[Http.OutgoingConnection]("onConnectionAttemptSucceeded", _.onConnectionAttemptSucceeded(_, _))
-          val onConnectionAttemptFailed = event[Throwable]("onConnectionAttemptFailed", _.onConnectionAttemptFailed(_, _))
+          val onPreConnect: Event[Unit] = event0("onPreConnect", _.onPreConnect(_))
+          val onConnectionAttemptSucceeded: Event[Http.OutgoingConnection] = event[Http.OutgoingConnection]("onConnectionAttemptSucceeded", _.onConnectionAttemptSucceeded(_, _))
+          val onConnectionAttemptFailed: Event[Throwable] = event[Throwable]("onConnectionAttemptFailed", _.onConnectionAttemptFailed(_, _))
 
-          val onNewConnectionEmbargo = event[FiniteDuration]("onNewConnectionEmbargo", _.onNewConnectionEmbargo(_, _))
+          val onNewConnectionEmbargo: Event[FiniteDuration] = event[FiniteDuration]("onNewConnectionEmbargo", _.onNewConnectionEmbargo(_, _))
 
-          val onNewRequest = event[RequestContext]("onNewRequest", _.onNewRequest(_, _))
+          val onNewRequest: Event[RequestContext] = event[RequestContext]("onNewRequest", _.onNewRequest(_, _))
 
-          val onRequestDispatched = event0("onRequestDispatched", _.onRequestDispatched(_))
-          val onRequestEntityCompleted = event0("onRequestEntityCompleted", _.onRequestEntityCompleted(_))
-          val onRequestEntityFailed = event[Throwable]("onRequestEntityFailed", _.onRequestEntityFailed(_, _))
+          val onRequestDispatched: Event[Unit] = event0("onRequestDispatched", _.onRequestDispatched(_))
+          val onRequestEntityCompleted: Event[Unit] = event0("onRequestEntityCompleted", _.onRequestEntityCompleted(_))
+          val onRequestEntityFailed: Event[Throwable] = event[Throwable]("onRequestEntityFailed", _.onRequestEntityFailed(_, _))
 
-          val onResponseReceived = event[HttpResponse]("onResponseReceived", _.onResponseReceived(_, _))
-          val onResponseDispatchable = event0("onResponseDispatchable", _.onResponseDispatchable(_))
-          val onResponseEntitySubscribed = event0("onResponseEntitySubscribed", _.onResponseEntitySubscribed(_))
-          val onResponseEntityCompleted = event0("onResponseEntityCompleted", _.onResponseEntityCompleted(_))
-          val onResponseEntityFailed = event[Throwable]("onResponseEntityFailed", _.onResponseEntityFailed(_, _))
+          val onResponseReceived: Event[HttpResponse] = event[HttpResponse]("onResponseReceived", _.onResponseReceived(_, _))
+          val onResponseDispatchable: Event[Unit] = event0("onResponseDispatchable", _.onResponseDispatchable(_))
+          val onResponseEntitySubscribed: Event[Unit] = event0("onResponseEntitySubscribed", _.onResponseEntitySubscribed(_))
+          val onResponseEntityCompleted: Event[Unit] = event0("onResponseEntityCompleted", _.onResponseEntityCompleted(_))
+          val onResponseEntityFailed: Event[Throwable] = event[Throwable]("onResponseEntityFailed", _.onResponseEntityFailed(_, _))
 
-          val onConnectionCompleted = event0("onConnectionCompleted", _.onConnectionCompleted(_))
-          val onConnectionFailed = event[Throwable]("onConnectionFailed", _.onConnectionFailed(_, _))
+          val onConnectionCompleted: Event[Unit] = event0("onConnectionCompleted", _.onConnectionCompleted(_))
+          val onConnectionFailed: Event[Throwable] = event[Throwable]("onConnectionFailed", _.onConnectionFailed(_, _))
 
-          val onTimeout = event0("onTimeout", _.onTimeout(_))
+          val onTimeout: Event[Unit] = event0("onTimeout", _.onTimeout(_))
 
           private def event0(name: String, transition: (SlotState, Slot) ⇒ SlotState): Event[Unit] = new Event(name, (state, slot, _) ⇒ transition(state, slot))
           private def event[T](name: String, transition: (SlotState, Slot, T) ⇒ SlotState): Event[T] = new Event[T](name, transition)
@@ -320,8 +320,8 @@ private[client] object EnhancedHostConnectionPool {
                     logic.slotsWaitingForDispatch.remove(this)
                     OptionVal.None
                   } catch {
-                    case NonFatal(ex) ⇒
-                      error(ex, "Shutting down slot after error failed.")
+                    case NonFatal(ex1) ⇒
+                      error(ex1, "Shutting down slot after error failed.")
                   }
                   state = Unconnected
                   OptionVal.Some(Event.onPreConnect)
@@ -561,7 +561,7 @@ private[client] object EnhancedHostConnectionPool {
         }
         override def postStop(): Unit = {
           log.debug("Pool stopped")
-          slots.foreach(_.shutdown())
+          freeSlots.foreach(_.shutdown())
         }
 
         private def willClose(response: HttpResponse): Boolean =
@@ -570,9 +570,7 @@ private[client] object EnhancedHostConnectionPool {
         private val safeCallback = getAsyncCallback[() ⇒ Unit](f ⇒ f())
         private def safely[T, U](f: T ⇒ Unit): T ⇒ Unit = t ⇒ safeCallback.invoke(() ⇒ f(t))
         private def safeRunnable(body: ⇒ Unit): Runnable =
-          new Runnable {
-            def run(): Unit = safeCallback.invoke(() ⇒ body)
-          }
+          () => safeCallback.invoke(() ⇒ body)
         private def createNewTimeoutId(): Long = {
           lastTimeoutId += 1
           lastTimeoutId
