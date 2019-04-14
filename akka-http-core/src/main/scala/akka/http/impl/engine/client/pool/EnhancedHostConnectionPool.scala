@@ -70,7 +70,7 @@ private[client] object EnhancedHostConnectionPool {
 
         val slots: Vector[Slot] = Vector.tabulate(_settings.maxConnections)(new Slot(_, onSlotIdle))
         val slotMap: util.Map[Int, Slot] = new util.HashMap[Int, Slot]()
-        val freeSlots: util.Deque[Slot] = new util.ArrayDeque[Slot]
+        val freeSlots: util.concurrent.ConcurrentLinkedQueue[Slot] = new util.concurrent.ConcurrentLinkedQueue[Slot]
         val slotsWaitingForDispatch: util.Deque[Slot] = new util.ArrayDeque[Slot]
         val retryBuffer: util.Deque[RequestContext] = new util.ArrayDeque[RequestContext]
         var _connectionEmbargo: FiniteDuration = Duration.Zero
@@ -82,7 +82,7 @@ private[client] object EnhancedHostConnectionPool {
           slots.foreach { slot =>
             slot.initialize()
             slotMap.put(slot.slotId, slot)
-            freeSlots.addLast(slot)
+            freeSlots.add(slot)
           }
 
         }
@@ -91,7 +91,7 @@ private[client] object EnhancedHostConnectionPool {
 
           val slotId = slot.slotId
 
-          freeSlots.addLast(slotMap.get(slotId))
+          freeSlots.add(slotMap.get(slotId))
 
         }
 
@@ -136,7 +136,7 @@ private[client] object EnhancedHostConnectionPool {
 //          slot.debug("Dispatching request [{}]", req.request.debugString)
 //          slot.onNewRequest(req)
 
-          val slot = freeSlots.pollFirst()
+          val slot = freeSlots.poll()
           if(null != slot) {
             slot.debug("Dispatching request [{}]", req.request.debugString)
             slot.onNewRequest(req)
