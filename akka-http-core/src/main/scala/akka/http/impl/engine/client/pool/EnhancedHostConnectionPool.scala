@@ -68,7 +68,9 @@ private[client] object EnhancedHostConnectionPool {
 
         private[this] var lastTimeoutId = 0L
 
-        val freeSlots: Vector[Slot] = Vector.tabulate(_settings.maxConnections)(new Slot(_))
+        val slots: Vector[Slot] = Vector.tabulate(_settings.maxConnections)(new Slot(_, onSlotIdle))
+        val slotMap: util.Map[Int, Slot] = new util.HashMap[Int, Slot]()
+        val freeSlots: util.Deque[Slot] = new util.ArrayDeque[Slot]
         val slotsWaitingForDispatch: util.Deque[Slot] = new util.ArrayDeque[Slot]
         val retryBuffer: util.Deque[RequestContext] = new util.ArrayDeque[RequestContext]
         var _connectionEmbargo: FiniteDuration = Duration.Zero
@@ -77,7 +79,20 @@ private[client] object EnhancedHostConnectionPool {
 
         override def preStart(): Unit = {
           pull(requestsIn)
-          freeSlots.foreach(_.initialize())
+          slots.foreach { slot =>
+            slot.initialize()
+            slotMap.put(slot.slotId, slot)
+            freeSlots.addLast(slot)
+          }
+
+        }
+
+        def onSlotIdle(slot: Slot): Unit = {
+
+          val slotId = slot.slotId
+
+          freeSlots.addLast(slotMap.get(slotId))
+
         }
 
         def onPush(): Unit = {
@@ -103,7 +118,8 @@ private[client] object EnhancedHostConnectionPool {
 
         def hasIdleSlots: Boolean =
           // TODO: optimize by keeping track of idle connections?
-          freeSlots.exists(_.isIdle)
+//          slots.exists(_.isIdle)
+          freeSlots.size() != 0
 
         def dispatchResponseResult(req: RequestContext, result: Try[HttpResponse]): Unit =
           if (result.isFailure && req.canBeRetried) {
@@ -113,15 +129,24 @@ private[client] object EnhancedHostConnectionPool {
             push(responsesOut, ResponseContext(req, result))
 
         def dispatchRequest(req: RequestContext): Unit = {
-          val slot =
-            freeSlots.find(_.isIdle)
-              .getOrElse(throw new IllegalStateException("Tried to dispatch request when no slot is idle"))
+//          val slot =
+//            slots.find(_.isIdle)
+//              .getOrElse(throw new IllegalStateException("Tried to dispatch request when no slot is idle"))
+//
+//          slot.debug("Dispatching request [{}]", req.request.debugString)
+//          slot.onNewRequest(req)
 
-          slot.debug("Dispatching request [{}]", req.request.debugString)
-          slot.onNewRequest(req)
+          val slot = freeSlots.pollFirst()
+          if(null != slot) {
+            slot.debug("Dispatching request [{}]", req.request.debugString)
+            slot.onNewRequest(req)
+          } else {
+            throw new IllegalStateException("Tried to dispatch request when no slot is idle")
+          }
+
         }
 
-        def numConnectedSlots: Int = freeSlots.count(_.isConnected)
+        def numConnectedSlots: Int = slots.count(_.isConnected)
 
         def onConnectionAttemptFailed(atPreviousEmbargoLevel: FiniteDuration): Unit = {
           val oldValue = _connectionEmbargo
@@ -133,7 +158,7 @@ private[client] object EnhancedHostConnectionPool {
           }
           if (_connectionEmbargo != oldValue) {
             log.warning(s"Connection attempt failed. Backing off new connection attempts for at least ${_connectionEmbargo}.")
-            freeSlots.foreach(_.onNewConnectionEmbargo(_connectionEmbargo))
+            slots.foreach(_.onNewConnectionEmbargo(_connectionEmbargo))
           }
         }
         def onConnectionAttemptSucceeded(): Unit = _connectionEmbargo = Duration.Zero
@@ -183,7 +208,8 @@ private[client] object EnhancedHostConnectionPool {
           }
         }
 
-        final class Slot(val slotId: Int) extends SlotContext with StateHandling {
+        final class Slot(val slotId: Int,
+                         onSlotIdle: Slot => Unit) extends SlotContext with StateHandling {
           private[this] var currentTimeoutId: Long = -1
           private[this] var currentTimeout: Cancellable = _
           private[this] var disconnectAt: Long = Long.MaxValue
@@ -252,6 +278,8 @@ private[client] object EnhancedHostConnectionPool {
                 debug(s"Before event [${event.name}] In state [${state.name}] for [${timeInState / 1000000} ms]")
                 state = event.transition(state, this, arg)
                 debug(s"After event [${event.name}] State change [${previousState.name}] -> [${state.name}]")
+
+                if(state.isIdle) onSlotIdle(this)
 
                 state.stateTimeout match {
                   case d: FiniteDuration ⇒
@@ -561,7 +589,7 @@ private[client] object EnhancedHostConnectionPool {
         }
         override def postStop(): Unit = {
           log.debug("Pool stopped")
-          freeSlots.foreach(_.shutdown())
+          slots.foreach(_.shutdown())
         }
 
         private def willClose(response: HttpResponse): Boolean =
