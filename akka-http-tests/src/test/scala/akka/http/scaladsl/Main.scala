@@ -23,11 +23,11 @@ trait Boot {
 
 object MainConfig {
 
-  val TotalCount: Int = 1024 * 1024
+  val TotalCount: Int = 65536
 
-  val MaxOpenRequests = 1024
+  val MaxOpenRequests = 65536
 
-  val MaxConnections = 1024
+  val MaxConnections = 65536
 
 }
 
@@ -129,6 +129,7 @@ trait MainDefaultConnectionPool extends MainTest with Boot {
     akka.loglevel = INFO
     akka.log-dead-letters = off
     akka.stream.materializer.debug.fuzzing-mode = off
+    akka.http.host-connection-pool.pool-implementation = new
     akka.http.host-connection-pool.max-connections = ${MainConfig.MaxConnections}
     akka.http.host-connection-pool.max-open-requests = ${MainConfig.MaxOpenRequests}
     """)
