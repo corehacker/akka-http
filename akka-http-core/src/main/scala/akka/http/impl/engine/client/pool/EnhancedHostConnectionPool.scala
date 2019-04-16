@@ -69,8 +69,10 @@ private[client] object EnhancedHostConnectionPool {
         private[this] var lastTimeoutId = 0L
 
         val slots: Vector[Slot] = Vector.tabulate(_settings.maxConnections)(new Slot(_, onSlotIdle))
+
         val slotMap: util.Map[Int, Slot] = new util.HashMap[Int, Slot]()
-        val idleSlots: util.Deque[Slot] = new util.ArrayDeque[Slot](slots.size)
+        val idleSlots: util.concurrent.ConcurrentLinkedQueue[Slot] = new util.concurrent.ConcurrentLinkedQueue[Slot]()
+
         val slotsWaitingForDispatch: util.Deque[Slot] = new util.ArrayDeque[Slot]
         val retryBuffer: util.Deque[RequestContext] = new util.ArrayDeque[RequestContext]
         var _connectionEmbargo: FiniteDuration = Duration.Zero
