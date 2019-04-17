@@ -23,11 +23,11 @@ trait Boot {
 
 object MainConfig {
 
-  val TotalCount: Int = 65536
+  val TotalCount: Int = 1024*1024
 
-  val MaxOpenRequests = 65536
+  val MaxOpenRequests: Int = 1024
 
-  val MaxConnections = 65536
+  val MaxConnections: Int = 1024
 
 }
 
@@ -37,7 +37,7 @@ trait MainTest {
 
 
 
-  val url = "http://127.0.0.1/health"
+  val url = "http://127.0.0.1/"
 
   val totalRequestCount = new AtomicInteger(0)
   val totalResponseCount = new AtomicInteger(0)
@@ -64,7 +64,9 @@ trait MainTest {
 
     outstandingRequestCount.getAndDecrement()
 
-    totalResponseCount.getAndIncrement()
+    val count = totalResponseCount.getAndIncrement()
+
+    if(count % 10000 == 0) println(s"Processed $count responses.")
 
     if(totalResponseCount.get() == MainConfig.TotalCount) {
       endTime = System.currentTimeMillis()
@@ -143,11 +145,23 @@ trait MainDefaultConnectionPool extends MainTest with Boot {
 
 object Main extends App {
 
-//  val default = new MainDefaultConnectionPool {}
-//  default.bootstrap()
-//  111764 ms
+  sys.env.getOrElse("CONNECTION_POOL_NAME", "new") match {
+    case "new" =>
+      println("Running default connection pool...")
+      val default = new MainDefaultConnectionPool {}
+      default.bootstrap()
 
-  val enhanced = new MainEnhancedConnectionPool {}
-  enhanced.bootstrap()
+      // MaxOpenRequests - 512
+      // MaxConnections - 512
+      // 1m requests - 555901ms
+    case "enhanced" =>
+      println("Running enhanced connection pool...")
+      val enhanced = new MainEnhancedConnectionPool {}
+      enhanced.bootstrap()
+
+      // MaxOpenRequests - 512
+      // MaxConnections - 512
+      // 1m requests - 568119ms
+  }
 
 }
