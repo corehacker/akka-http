@@ -25,9 +25,9 @@ object MainConfig {
 
   val TotalCount: Int = 1024*1024
 
-  val MaxOpenRequests: Int = 1024
+  val MaxOpenRequests: Int = 512
 
-  val MaxConnections: Int = 1024
+  val MaxConnections: Int = 512
 
 }
 
@@ -112,6 +112,9 @@ trait MainEnhancedConnectionPool extends MainTest with Boot {
   val testConf: Config = ConfigFactory.parseString(s"""
     akka.loglevel = INFO
     akka.log-dead-letters = off
+    akka.actor.default-dispatcher.default-executor.fallback = "thread-pool-executor"
+    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-max = 8
+    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-factor = 1
     akka.stream.materializer.debug.fuzzing-mode = off
     akka.http.host-connection-pool.pool-implementation = enhanced
     akka.http.host-connection-pool.max-connections = ${MainConfig.MaxConnections}
@@ -130,6 +133,9 @@ trait MainDefaultConnectionPool extends MainTest with Boot {
   val testConf: Config = ConfigFactory.parseString(s"""
     akka.loglevel = INFO
     akka.log-dead-letters = off
+    akka.actor.default-dispatcher.default-executor.fallback = "thread-pool-executor"
+    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-max = 8
+    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-factor = 1
     akka.stream.materializer.debug.fuzzing-mode = off
     akka.http.host-connection-pool.pool-implementation = new
     akka.http.host-connection-pool.max-connections = ${MainConfig.MaxConnections}
