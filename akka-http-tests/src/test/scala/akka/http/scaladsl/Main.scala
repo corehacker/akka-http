@@ -23,7 +23,7 @@ trait Boot {
 
 object MainConfig {
 
-  val TotalCount: Int = 1024*1024
+  val TotalCount: Int = 1024*256
 
   val MaxOpenRequests: Int = 512
 
@@ -66,13 +66,21 @@ trait MainTest {
 
     val count = totalResponseCount.getAndIncrement()
 
-    if(count % 10000 == 0) println(s"Processed $count responses.")
+    if(count % 10000 == 0) {
+      endTime = System.currentTimeMillis()
+
+      val elapsed = endTime - startTime
+      val perSecond: Float = count / (elapsed / 1000)
+      println(s"Processed $count responses. (${elapsed}ms @ $perSecond req/s)")
+    }
 
     if(totalResponseCount.get() == MainConfig.TotalCount) {
       endTime = System.currentTimeMillis()
 
       val elapsed = endTime - startTime
 
+      println("Requested Count: " + totalRequestCount.get())
+      println("Responses Count: " + totalResponseCount.get())
       println(s"Elapsed: $elapsed ms")
 
       system.terminate()
@@ -133,9 +141,7 @@ trait MainDefaultConnectionPool extends MainTest with Boot {
   val testConf: Config = ConfigFactory.parseString(s"""
     akka.loglevel = INFO
     akka.log-dead-letters = off
-    akka.actor.default-dispatcher.default-executor.fallback = "thread-pool-executor"
-    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-max = 8
-    akka.actor.default-dispatcher.thread-pool-executor.core-pool-size-factor = 1
+    akka.io.tcp.nr-of-selectors = 4
     akka.stream.materializer.debug.fuzzing-mode = off
     akka.http.host-connection-pool.pool-implementation = new
     akka.http.host-connection-pool.max-connections = ${MainConfig.MaxConnections}
