@@ -1,11 +1,12 @@
 package akka.http.scaladsl
 
+import java.sql.Timestamp
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
-import akka.util.ByteString
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -66,12 +67,12 @@ trait MainTest {
 
     val count = totalResponseCount.getAndIncrement()
 
-    if(count % 10000 == 0) {
+    if(count > 0 && count % 10000 == 0) {
       endTime = System.currentTimeMillis()
 
       val elapsed = endTime - startTime
       val perSecond: Float = count / (elapsed / 1000)
-      println(s"Processed $count responses. (${elapsed}ms @ $perSecond req/s)")
+      println(s"${Timestamp.from(Instant.now)} - Processed $count responses. (${elapsed}ms @ $perSecond req/s)")
     }
 
     if(totalResponseCount.get() == MainConfig.TotalCount) {
@@ -81,7 +82,7 @@ trait MainTest {
 
       println("Requested Count: " + totalRequestCount.get())
       println("Responses Count: " + totalResponseCount.get())
-      println(s"Elapsed: $elapsed ms")
+      println(s"${Timestamp.from(Instant.now)} - Elapsed: $elapsed ms")
 
       system.terminate()
     }
